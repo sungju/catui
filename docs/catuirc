@@ -1,0 +1,4 @@
+# Test target list
+
+machine1='ssh skwon@retrace.example.com|$ |hostname|[PEXPECT]|retrace-server-interact %s crash|\r\ncrash> '
+machine-s390='ssh skwon@machine-s390.example.com|$ |retrace-server %s crash|\r\ncrash> '
