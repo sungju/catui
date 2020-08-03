@@ -13,8 +13,8 @@ from pathlib import Path
 
 
 class CrashTUI:
-    CRASH_PROMPT = "\ncrash> "
-    timeout = 120
+    CRASH_PROMPT = "crash> "
+    timeout = 240
     debug_mode = False
 
     target_list = {}
@@ -44,12 +44,20 @@ class CrashTUI:
             if f is not None:
                 f.close()
 
+    def msg_deliver(self, callback_func, message, private_data=None):
+        if callback_func is None:
+            return
 
-    def open(self, target, arg_list):
+        callback_func(message, private_data)
+
+
+    def open(self, target, arg_list, callback_func=None, private_data=None):
+        result_str = ""
         try:
             if target not in self.target_list:
-                print("Target %s is not in the list. Please check ~/.catuirc" % target)
-                return
+                result_str = "Target %s is not in the list. Please check ~/.catuirc" % target
+                self.msg_deliver(callback_func, result_str, private_data)
+                return result_str
 
             cmd_str = self.target_list[target]
             cmd_str = cmd_str % arg_list
@@ -64,27 +72,34 @@ class CrashTUI:
                 num += 1
 
             if self.debug_mode:
-                print(cmd_list)
-                print(expect_list)
+                result = cmd_list + "\n"
+                result = result + expect_list + "\n"
+                result_str = result_str + result
+                self.msg_deliver(callback_func, result, private_data)
 
             num = 0
             result_str = ""
             while (num < len(cmd_list)):
-                result = self.run_one_command(cmd_list[num], expect_list[num])
-                result_str = result_str + "\n" + result
+                result = "\n" + self.run_one_command(cmd_list[num], expect_list[num])
+                self.msg_deliver(callback_func, result, private_data)
+                result_str = result_str + result
                 num += 1
-            result = self.run_one_command('px 0x499602d2', ' = 0x499602d2\r\ncrash> ')
-            result_str = result_str + "\n" + result
+            result_str = result_str[result_str.find(cmd_list[num - 1]):]
+            result = "\n" + self.run_one_command('px 0x499602d2', ' = 0x499602d2.*crash> ')
+            result_str = result_str + result
             result_str = result_str.replace("px 0x499602d2", "")
+            result_str = result_str.replace(" unset PROMPT_COMMAND\r\n", "")
+            result_str = result_str.replace(" PS1='[PEXPECT]\$ '\r\n", "")
             result_lines = result_str.splitlines()
             for i in range(0, len(result_lines) - 2):
-                print(result_lines[i])
+                result_str = result_str + result_lines[i] + "\n"
         except TypeError as e:
-            print("Argument list not matching with the target string")
-            print(e)
+            result_str = result_str + "Argument list not matching with the target string" + "\n"
+            result_str = result_str + e + "\n"
         except Exception as e:
-            print(e)
-            pass
+            result_str = result_str + e + "\n"
+
+        return result_str
 
 
     def close(self):
@@ -117,27 +132,29 @@ class CrashTUI:
             result = self.child_session.before.decode("utf-8")
         except Exception as e:
             print(e)
+            print(self.child_session.before)
 
         return result
 
 
-    def run(self, cmd_str):
+    def run(self, cmd_str, callback_func=None, private_data=None):
+        result_str = ""
         try:
             if self.child_session == None:
-                print("Please run crash first")
-                return
+                return "Please run crash first\n"
 
             self.child_session.sendline(cmd_str)
             result = self.child_session.expect(self.CRASH_PROMPT,
                                                timeout=self.timeout)
             result = self.child_session.before.decode("utf-8")
-            print("="* 50)
-            print("crash> ", end="")
+            result_str = result_str + "crash> "
             for line in result.splitlines():
-                print(line)
-            print("-" * 50)
+                result_str = result_str + line + "\n"
+            self.msg_deliver(callback_func, result_str, private_data)
         except Exception as e:
             print(e)
+
+        return result_str
 
 
 def main():
@@ -161,7 +178,6 @@ def main():
     catui.run("mod -t")
     catui.run("kmem -i")
     catui.close()
-
 
 
 if __name__ == "__main__":
