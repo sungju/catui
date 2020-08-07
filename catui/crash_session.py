@@ -10,18 +10,25 @@ import re
 from optparse import OptionParser
 
 from pathlib import Path
+import threading
+import time
 
 
 class CrashTUI:
     CRASH_PROMPT = "crash> "
-    timeout = 240
+    MAGIC_KEY = "0x499602d2"
+    timeout = 60
     debug_mode = False
 
     target_list = {}
     child_session = None
 
-    def __init__(self, init_cmd):
+
+    def __init__(self, callback_func=None, callback_data=None):
         f = None
+        self.callback_func = callback_func
+        self.callback_data = callback_data
+
         try:
             filename = "%s/.catuirc" % str(Path.home())
             f = open(filename, "r")
@@ -44,20 +51,24 @@ class CrashTUI:
             if f is not None:
                 f.close()
 
-    def msg_deliver(self, callback_func, message, private_data=None):
-        if callback_func is None:
+    def __del__(self):
+        self.cont_thread = False
+        pass
+
+
+    def msg_deliver(self, message):
+        if self.callback_func is None or message is None:
             return
 
-        callback_func(message, private_data)
+        self.callback_func(message, self.callback_data)
 
 
-    def open(self, target, arg_list, callback_func=None, private_data=None):
-        result_str = ""
+    def open(self, target, arg_list):
         try:
             if target not in self.target_list:
                 result_str = "Target %s is not in the list. Please check ~/.catuirc" % target
-                self.msg_deliver(callback_func, result_str, private_data)
-                return result_str
+                self.msg_deliver(result_str)
+                return
 
             cmd_str = self.target_list[target]
             cmd_str = cmd_str % arg_list
@@ -72,34 +83,33 @@ class CrashTUI:
                 num += 1
 
             if self.debug_mode:
-                result = cmd_list + "\n"
+                result = "DEBUG>" + cmd_list + "\n"
                 result = result + expect_list + "\n"
-                result_str = result_str + result
-                self.msg_deliver(callback_func, result, private_data)
+                self.msg_deliver(result)
 
             num = 0
-            result_str = ""
             while (num < len(cmd_list)):
-                result = "\n" + self.run_one_command(cmd_list[num], expect_list[num])
-                self.msg_deliver(callback_func, result, private_data)
-                result_str = result_str + result
+                result = self.run_one_command(cmd_list[num], expect_list[num])
+                result = result + expect_list[num].replace("\\r\\n", "")
+                result = result.replace(" unset PROMPT_COMMAND\r\n", "")
+                result = result.replace(" PS1='[PEXPECT]\$ '\r\n", "")
+                result = result.replace("px %s" % (self.MAGIC_KEY), "")
+                result_str = ""
+                for line in result.splitlines():
+                    result_str = result_str + line + "\n"
+                self.msg_deliver(result_str)
                 num += 1
-            result_str = result_str[result_str.find(cmd_list[num - 1]):]
-            result = "\n" + self.run_one_command('px 0x499602d2', ' = 0x499602d2.*crash> ')
-            result_str = result_str + result
-            result_str = result_str.replace("px 0x499602d2", "")
-            result_str = result_str.replace(" unset PROMPT_COMMAND\r\n", "")
-            result_str = result_str.replace(" PS1='[PEXPECT]\$ '\r\n", "")
-            result_lines = result_str.splitlines()
-            for i in range(0, len(result_lines) - 2):
-                result_str = result_str + result_lines[i] + "\n"
+            self.run("")
         except TypeError as e:
             result_str = result_str + "Argument list not matching with the target string" + "\n"
             result_str = result_str + e + "\n"
+            self.msg_deliver(result_str)
         except Exception as e:
             result_str = result_str + e + "\n"
+            self.msg_deliver(result_str)
 
-        return result_str
+
+        return
 
 
     def close(self):
@@ -137,24 +147,34 @@ class CrashTUI:
         return result
 
 
-    def run(self, cmd_str, callback_func=None, private_data=None):
+    def run(self, cmd_str):
         result_str = ""
         try:
             if self.child_session == None:
                 return "Please run crash first\n"
 
-            self.child_session.sendline(cmd_str)
-            result = self.child_session.expect(self.CRASH_PROMPT,
-                                               timeout=self.timeout)
-            result = self.child_session.before.decode("utf-8")
-            result_str = result_str + "crash> "
-            for line in result.splitlines():
+            if len(cmd_str) > 0:
+                self.child_session.sendline(cmd_str)
+
+            result_str = self.run_one_command('px %s' % (self.MAGIC_KEY),
+                                              ' = %s.*crash> ' % (self.MAGIC_KEY))
+            result_str = result_str[:result_str.find("crash> px %s" % (self.MAGIC_KEY))]
+            result_str = result_str.replace("px %s" % (self.MAGIC_KEY), "")
+            result_lines = result_str.splitlines()
+            result_str = ""
+            for line in result_lines:
                 result_str = result_str + line + "\n"
-            self.msg_deliver(callback_func, result_str, private_data)
+            result_str = result_str + "crash> "
+            self.msg_deliver(result_str)
         except Exception as e:
             print(e)
 
         return result_str
+
+
+
+def callback_func(msg_str, private_data):
+    print(msg_str)
 
 
 def main():
@@ -170,7 +190,7 @@ def main():
         op.print_help()
         sys.exit(-1)
 
-    catui = CrashTUI("")
+    catui = CrashTUI(callback_func)
     catui.debug_mode = o.verbose_mode
     catui.open(args[0], tuple(args[1:]))
     catui.run("bt")
