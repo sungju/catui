@@ -62,13 +62,21 @@ class CrashTUI:
 
         self.callback_func(message, self.callback_data)
 
+    def is_connected(self):
+        return self.child_session != None
+
 
     def open(self, target, arg_list):
+        result_str = ""
         try:
             if target not in self.target_list:
                 result_str = "Target %s is not in the list. Please check ~/.catuirc" % target
                 self.msg_deliver(result_str)
                 return
+
+            if self.debug_mode:
+                print("target: %s" % target)
+                print("options : ", arg_list)
 
             cmd_str = self.target_list[target]
             cmd_str = cmd_str % arg_list
@@ -81,11 +89,6 @@ class CrashTUI:
                 num += 1
                 expect_list.append(cmd_list_all[num])
                 num += 1
-
-            if self.debug_mode:
-                result = "DEBUG>" + cmd_list + "\n"
-                result = result + expect_list + "\n"
-                self.msg_deliver(result)
 
             num = 0
             while (num < len(cmd_list)):
@@ -102,7 +105,7 @@ class CrashTUI:
             self.run("")
         except TypeError as e:
             result_str = result_str + "Argument list not matching with the target string" + "\n"
-            result_str = result_str + e + "\n"
+            result_str = result_str + repr(e) + "\n"
             self.msg_deliver(result_str)
         except Exception as e:
             result_str = result_str + e + "\n"
@@ -113,7 +116,9 @@ class CrashTUI:
 
 
     def close(self):
-        pass
+        if self.child_session != None:
+            self.child_session.close()
+            self.child_session = None
 
 
     def run_one_command(self, cmd_str, expect_str):
@@ -153,11 +158,18 @@ class CrashTUI:
             if self.child_session == None:
                 return "Please run crash first\n"
 
-            if len(cmd_str) > 0:
+            if cmd_str != None and len(cmd_str.strip()) > 0:
+                cmd_str = cmd_str.strip()
+                if cmd_str == "quit" or cmd_str == "exit":
+                    self.close()
+                    self.msg_deliver("\n%s--- DISCONNECTED ---%s\n" %
+                                     (self.MAGIC_KEY, self.MAGIC_KEY))
+                    return ""
+
                 self.child_session.sendline(cmd_str)
 
             result_str = self.run_one_command('px %s' % (self.MAGIC_KEY),
-                                              ' = %s.*crash> ' % (self.MAGIC_KEY))
+                                              '\$[0-9]+ = %s.*crash> ' % (self.MAGIC_KEY))
             result_str = result_str[:result_str.find("crash> px %s" % (self.MAGIC_KEY))]
             result_str = result_str.replace("px %s" % (self.MAGIC_KEY), "")
             result_lines = result_str.splitlines()
