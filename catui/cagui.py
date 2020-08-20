@@ -13,6 +13,10 @@ import wx.xrc
 import frame_crash
 from ansi2html import Ansi2HTMLConverter
 
+#
+# TODO: Need to replace the below in frame_crash.py
+#         self.html_main_output = wx.html2.WebView.New(self, wx.ID_ANY, style=0)
+
 class ServerSelectDialog(frame_crash.DialogServerSelect):
     catui = None
 
@@ -52,10 +56,13 @@ class CrashWindow(frame_crash.FrameCrash):
         if "gtk2" in wx.PlatformInfo:
             self.html_main_output.SetStandardFonts()
 
+        self.html_main_output.Bind(wx.html2.EVT_WEBVIEW_TITLE_CHANGED,
+                                   self.OnTitleChanged)
+        self.html_main_output.SetEditable(False)
         self.options = options
         self.debug_mode = options.verbose_mode
         self.ansi_conv = Ansi2HTMLConverter(inline=True,
-                                            font_size="normal",
+                                            font_size="large",
                                            scheme="xterm")
         self.new_session()
 
@@ -67,9 +74,19 @@ class CrashWindow(frame_crash.FrameCrash):
         self.catui.debug_mode = self.debug_mode
 
 
+    def OnTitleChanged(self, event):
+        #self.tc_command_input.SetValue(self.html_main_output.GetCurrentTitle())
+        title = self.html_main_output.GetCurrentTitle().split("|")[0]
+        if title != None and title.startswith("Key"):
+            key = title[3].lower()
+            self.tc_command_input.SetValue(self.tc_command_input.GetValue() + key)
+
+        self.tc_command_input.SetFocus()
+        self.tc_command_input.SetInsertionPointEnd()
+
+
     def OnLeftDClick(self, event):
         # This is for HtmlWindow: Not using for now
-        print("OnLeftDClick")
         dc = wx.ClientDC(self.html_main_output)
         pos = event.GetLogicalPosition(dc)
         pos = self.html_main_output.CalcUnscrolledPosition(pos)
@@ -96,7 +113,6 @@ class CrashWindow(frame_crash.FrameCrash):
 
 
     def OnChar(self, event):
-        print("OnChar")
         self.tc_command_input.SetFocus()
 
 
@@ -170,6 +186,20 @@ class CrashWindow(frame_crash.FrameCrash):
         }
         function CopyToClipboard() {
             document.execCommand('copy');
+        }
+
+        var body = document.getElementsByTagName("BODY")[0];
+        body.onkeydown = function KeyHandle(e) {
+            var currentdate = new Date();
+            var datetime = "|Pressed at: " + currentdate.getDate() + "/"
+                            + (currentdate.getMonth()+1)  + "/"
+                            + currentdate.getFullYear() + " @ "
+                            + currentdate.getHours() + ":"
+                            + currentdate.getMinutes() + ":"
+                            + currentdate.getSeconds() + "."
+                            + currentdate.getMilliseconds();
+
+            document.title = e.code + " " + datetime;
         }
         </script>
         """

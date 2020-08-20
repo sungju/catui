@@ -57,7 +57,7 @@ class FrameCrash ( wx.Frame ):
 
 		bs_main = wx.BoxSizer( wx.VERTICAL )
 
-		self.html_main_output = wx.html2.WebView.New(self)
+		self.html_main_output = wx.html2.WebView.New(self, wx.ID_ANY, style=0)
 		self.html_main_output.SetFont( wx.Font( wx.NORMAL_FONT.GetPointSize(), wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL, False, wx.EmptyString ) )
 
 		bs_main.Add( self.html_main_output, 1, wx.ALL|wx.EXPAND, 5 )
