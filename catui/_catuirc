@@ -1,0 +1,10 @@
+# This is a resource file which should be located at home directory
+# as ${HOME}/.catuirc
+#
+# Test target list
+
+# Retrace server example
+galvatron='ssh sungju@retrace.example.com|$ |retrace-server-interact %s crash|\r\ncrash> '
+
+# Local machin which has ssh key with ssh-copy-id
+mylabtop='ssh root@mylabtop.example.com|$ |crash|\r\ncrash> '
