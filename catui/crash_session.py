@@ -102,7 +102,7 @@ class CrashTUI:
                     result_str = result_str + line + "\n"
                 self.msg_deliver(result_str)
                 num += 1
-            self.run("")
+            self.run("sf")
         except TypeError as e:
             result_str = result_str + "Argument list not matching with the target string" + "\n"
             result_str = result_str + repr(e) + "\n"
@@ -135,7 +135,7 @@ class CrashTUI:
                         username = userinfo
                         password = ""
                     hostname = cmd_list[1]
-                    self.child_session.login(hostname, username, password)
+                    self.child_session.login(hostname, username, password, sync_multiplier=5)
                 else:
                     self.child_session = pexpect.spawn(cmd_str, timeout=self.timeout)
             else:

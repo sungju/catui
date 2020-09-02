@@ -44,7 +44,7 @@ def main():
     tv.goto_top()
     tv.draw_window()
 
-    catui = crash_session.CrashTUI("")
+    catui = crash_session.CrashTUI(my_msg_func, tv)
     catui.debug_mode = o.verbose_mode
     '''
     run_and_append(tv, catui.open(args[0], tuple(args[1:])))
@@ -54,18 +54,15 @@ def main():
     run_and_append(tv, catui.run("mod -t"))
     run_and_append(tv, catui.run("kmem -i"))
     '''
-    catui.open(args[0], tuple(args[1:]), my_msg_func, tv)
-    catui.run("bt", my_msg_func, tv)
-    #catui.run("sys", my_msg_func, tv)
-    #catui.run("mod -t", my_msg_func, tv)
-    #catui.run("kmem -i", my_msg_func, tv)
+    catui.open(args[0], tuple(args[1:]))
+    catui.run("bt")
 
     inp = winlib.InputBox(term, 0, -3, -1, 3, 2, 1)
     while (True):
         result_str, exit_key = inp.get_text("", [curses.KEY_UP, ord('\t'), ord('\n'), 27])
         if exit_key == 27 or result_str.strip() in ["exit", "quit"]:
             break
-        catui.run(result_str, my_msg_func, tv)
+        catui.run(result_str)
 
     catui.close()
     #tv.run()

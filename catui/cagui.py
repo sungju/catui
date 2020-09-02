@@ -13,9 +13,18 @@ import wx.xrc
 import frame_crash
 from ansi2html import Ansi2HTMLConverter
 
+
+from load_plugins import load_plugins
+
 #
 # TODO: Need to replace the below in frame_crash.py
 #         self.html_main_output = wx.html2.WebView.New(self, wx.ID_ANY, style=0)
+
+
+# Uses by plugins to communicate with GUI
+class AppSharedData:
+    pass
+
 
 class ServerSelectDialog(frame_crash.DialogServerSelect):
     catui = None
@@ -49,13 +58,20 @@ class CrashWindow(frame_crash.FrameCrash):
     full_output = ""
     debug_mode = False
     options = None
+    cmd_history = []
+    cmd_idx = 0
+    appSharedData = None
 
-    def __init__(self, parent, options):
+    def __init__(self, parent, options, appSharedData):
         super(CrashWindow, self).__init__(parent)
+
+        self.appSharedData = appSharedData
 
         if "gtk2" in wx.PlatformInfo:
             self.html_main_output.SetStandardFonts()
 
+        self.Unbind(wx.EVT_CHAR_HOOK)
+        self.tc_command_input.Bind(wx.EVT_CHAR_HOOK, self.OnInputCharHook)
         self.html_main_output.Bind(wx.html2.EVT_WEBVIEW_TITLE_CHANGED,
                                    self.OnTitleChanged)
         self.html_main_output.SetEditable(False)
@@ -64,6 +80,12 @@ class CrashWindow(frame_crash.FrameCrash):
         self.ansi_conv = Ansi2HTMLConverter(inline=True,
                                             font_size="large",
                                            scheme="xterm")
+        width, height = wx.GetDisplaySize()
+        self.SetPosition((width * 0.1, height * 0.1))
+        width = width * 0.8
+        height = height * 0.8
+
+        self.SetSize(wx.Size(width, height))
         self.new_session()
 
 
@@ -72,6 +94,8 @@ class CrashWindow(frame_crash.FrameCrash):
         self.catui = crash_session.CrashTUI(self.my_msg_func,
                                             self.html_main_output)
         self.catui.debug_mode = self.debug_mode
+        self.full_output = ""
+        self.my_msg_func("", self.html_main_output)
 
 
     def OnTitleChanged(self, event):
@@ -93,6 +117,33 @@ class CrashWindow(frame_crash.FrameCrash):
         # FIXME: Still line is selected
         self.html_main_output.SelectWord(pos)
 
+
+    def ReplaceInputWithHistory(self, key):
+        cmd_len = len(self.cmd_history)
+        if cmd_len == 0:
+            return
+
+        if key == wx.WXK_UP:
+            if self.cmd_idx > 0:
+                self.cmd_idx = self.cmd_idx - 1
+            self.tc_command_input.SetValue(self.cmd_history[self.cmd_idx])
+        elif key == wx.WXK_DOWN:
+            self.cmd_idx = self.cmd_idx + 1
+            if self.cmd_idx >= cmd_len:
+                self.cmd_idx = cmd_len
+                self.tc_command_input.SetValue("")
+            else:
+                self.tc_command_input.SetValue(self.cmd_history[self.cmd_idx])
+
+
+    def OnInputCharHook(self, event):
+        key = event.GetKeyCode()
+        if key == wx.WXK_UP or key == wx.WXK_DOWN:
+            self.ReplaceInputWithHistory(key)
+            self.tc_command_input.SetInsertionPointEnd()
+            return
+
+        event.Skip()
 
 
     def OnCharHook(self, event):
@@ -118,11 +169,17 @@ class CrashWindow(frame_crash.FrameCrash):
 
     def OnEnter(self, event):
         cmd_str = self.tc_command_input.GetValue()
+        self.cmd_history.append(cmd_str)
+        self.cmd_idx = len(self.cmd_history)
         self.tc_command_input.SetValue("")
         self.run_command(cmd_str)
 
 
     def OnNewSessionClick(self, event):
+        self.connect_new_dlg()
+
+
+    def connect_new_dlg(self, new_window=True):
         try:
             dlg = ServerSelectDialog(None, self.catui)
             if dlg.ShowModal() == wx.ID_OK:
@@ -132,9 +189,12 @@ class CrashWindow(frame_crash.FrameCrash):
                     args = eval(args_str)
                 else:
                     args = ()
-                cagui = CrashWindow(None, self.options)
-                cagui.connect(server, args)
-                cagui.Show(True)
+                if new_window == True:
+                    cagui = CrashWindow(None, self.options, self.appSharedData)
+                    cagui.connect(server, args)
+                    cagui.Show(True)
+                else:
+                    self.connect(server, args)
             else:
                 pass
         finally:
@@ -190,6 +250,13 @@ class CrashWindow(frame_crash.FrameCrash):
 
         var body = document.getElementsByTagName("BODY")[0];
         body.onkeydown = function KeyHandle(e) {
+            var cKey = 67;
+
+            if (e.metaKey == true || e.ctrlKey == true) {
+                if (e.keyCode == cKey)
+                    CopyToClipboard();
+                return true;
+            }
             var currentdate = new Date();
             var datetime = "|Pressed at: " + currentdate.getDate() + "/"
                             + (currentdate.getMonth()+1)  + "/"
@@ -217,14 +284,17 @@ def main():
                   help="Shows debugging messages")
 
     (o, args) = op.parse_args()
-    if len(args) == 0:
-        op.print_help()
-        sys.exit(-1)
-
     app = wx.App(False)
-    cagui = CrashWindow(None, o)
-    cagui.connect(args[0], tuple(args[1:]))
+    appSharedData = AppSharedData()
+    load_plugins(appSharedData)
+    cagui = CrashWindow(None, o, appSharedData)
     cagui.Show(True)
+
+    if len(args) > 0:
+        cagui.connect(args[0], tuple(args[1:]))
+    else:
+        cagui.connect_new_dlg(new_window=False)
+
     app.MainLoop()
 
 
