@@ -6,6 +6,11 @@ crash analysis tool user interface
 - Run 'make' to install required packages
 
 ```
+$ cd catui/
+$ ls
+LICENSE           README.md         docs/             setup.py
+Makefile          catui/            requirements.txt  tests/
+
 $ make
 pip3 install -r requirements.txt
 Requirement already satisfied: pexpect in /usr/local/lib/python3.7/site-packages (from -r requirements.txt (line 1)) (4.8.0)
