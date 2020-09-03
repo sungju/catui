@@ -20,6 +20,15 @@ Requirement already satisfied: six in /usr/local/lib/python3.7/site-packages (fr
 $
 ```
 
+- Should have server list as ${HOME}/.catuirc
+  - Sample is located as catui/catui/_catuirc
+  - Copy this and modify to fit your requirement
+
+```
+$ cp catui/_catuirc ${HOME}/.catuirc
+$ vi ~/.catuirc
+```
+
 ### Start the tool
 
 - Run the below in local system as it uses GUI
